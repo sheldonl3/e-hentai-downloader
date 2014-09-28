@@ -83,14 +83,18 @@ func download(rawurl string) error {
 	return nil
 }
 
-var reFileName = regexp.MustCompile("[^/]+$")
+var reInPath = regexp.MustCompile("[^/]+$")
+var reInQuery = regexp.MustCompile("[^=]+$")
 
 func fileNameOf(rawurl string) (string, error) {
 	url, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
 	}
-	file := reFileName.FindString(url.Path)
+	file := reInPath.FindString(url.Path)
+	if file == "image.php" { // Ocasionally, it returns image.php!
+		file = reInQuery.FindString(url.RawQuery)
+	}
 	if file == "" {
 		return "", fmt.Errorf("Filename not found: %s", rawurl)
 	}
