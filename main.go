@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,12 +20,14 @@ func main() {
 		imgUrl, nextUrl, err := scrapeImgAndNext(url0)
 		if err != nil {
 			fmt.Println(err)
-			log.Fatal(err)
+			fmt.Println("Retry...")
+			continue
 		}
 		err = download(imgUrl)
 		if err != nil {
 			fmt.Println(err)
-			log.Fatal(err)
+			fmt.Println("Retry...")
+			continue
 		}
 		url0, url1 = nextUrl, url0
 		fmt.Println("done")
