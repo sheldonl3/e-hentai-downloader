@@ -1,19 +1,24 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
+	"time"
 
 	"code.google.com/p/go.net/html"
 	"github.com/PuerkitoBio/goquery"
 )
 
+var intervalFlag = flag.Float64("interval", 1, "Interval between each download (sec)")
+
 func main() {
-	url0 := os.Args[1]
+	flag.Parse()
+	url0 := flag.Arg(0)
 	url1 := ""
 	for url0 != url1 {
 		fmt.Printf("Scraping %s...", url0)
@@ -27,10 +32,15 @@ func main() {
 		if err != nil {
 			fmt.Println(err)
 			fmt.Println("Retry...")
-			continue
+		} else {
+			url0, url1 = nextUrl, url0
+			fmt.Println("done")
 		}
-		url0, url1 = nextUrl, url0
-		fmt.Println("done")
+		if *intervalFlag > 0 {
+			fmt.Printf("Waiting for %f seconds...", *intervalFlag)
+			time.Sleep(time.Duration(*intervalFlag) * time.Second)
+			fmt.Println("OK.")
+		}
 	}
 }
 
