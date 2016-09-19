@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +16,8 @@ import (
 )
 
 var intervalFlag = flag.Float64("interval", 1, "Interval between each download (sec)")
+
+var ErrLimitReached = errors.New("You have temporarily reached the limit for how many images you can browse. See http://ehgt.org/g/509.gif for more details.")
 
 func main() {
 	flag.Parse()
@@ -31,6 +34,9 @@ func main() {
 		err = download(imgUrl)
 		if err != nil {
 			fmt.Println(err)
+			if err == ErrLimitReached {
+				return
+			}
 			fmt.Println("Retry...")
 		} else {
 			url0, url1 = nextUrl, url0
@@ -77,6 +83,9 @@ func download(rawurl string) error {
 	filename, err := fileNameOf(rawurl)
 	if err != nil {
 		return err
+	}
+	if filename == "509.gif" {
+		return ErrLimitReached
 	}
 	resp, err := http.Get(rawurl)
 	if err != nil {
