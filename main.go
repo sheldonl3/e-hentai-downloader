@@ -20,7 +20,7 @@ import (
 
 var intervalFlag = flag.Float64("interval", 1, "Interval between each download (sec)")
 
-var errLimitReached = errors.New("You have temporarily reached the limit for how many images you can browse. See http://ehgt.org/g/509.gif for more details.")
+var errLimitReached = errors.New("You have temporarily reached the limit for how many images you can browse. See http://ehgt.org/g/509.gif for more details")
 
 var httpClient *http.Client
 
