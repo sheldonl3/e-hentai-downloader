@@ -5,19 +5,34 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"regexp"
 	"time"
 
-	"code.google.com/p/go.net/html"
+	"golang.org/x/net/publicsuffix"
+
 	"github.com/PuerkitoBio/goquery"
 )
 
 var intervalFlag = flag.Float64("interval", 1, "Interval between each download (sec)")
 
-var ErrLimitReached = errors.New("You have temporarily reached the limit for how many images you can browse. See http://ehgt.org/g/509.gif for more details.")
+var errLimitReached = errors.New("You have temporarily reached the limit for how many images you can browse. See http://ehgt.org/g/509.gif for more details.")
+
+var httpClient *http.Client
+
+func init() {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		log.Fatal(err)
+	}
+	httpClient = &http.Client{
+		Jar: jar,
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -25,21 +40,21 @@ func main() {
 	url1 := ""
 	for url0 != url1 {
 		fmt.Printf("Scraping %s...", url0)
-		imgUrl, nextUrl, err := scrapeImgAndNext(url0)
+		imgURL, nextURL, err := scrapeImgAndNext(url0)
 		if err != nil {
 			fmt.Println(err)
 			fmt.Println("Retry...")
 			continue
 		}
-		err = download(imgUrl)
+		err = download(imgURL)
 		if err != nil {
 			fmt.Println(err)
-			if err == ErrLimitReached {
+			if err == errLimitReached {
 				return
 			}
 			fmt.Println("Retry...")
 		} else {
-			url0, url1 = nextUrl, url0
+			url0, url1 = nextURL, url0
 			fmt.Println("done")
 		}
 		if *intervalFlag > 0 {
@@ -51,32 +66,29 @@ func main() {
 }
 
 func scrapeImgAndNext(rawurl string) (img string, next string, err error) {
-	doc, err := goquery.NewDocument(rawurl)
+	res, err := httpClient.Get(rawurl)
 	if err != nil {
 		return "", "", err
 	}
-	imgNode := doc.Find("#img").Nodes[0]
-	if imgNode == nil {
+	defer res.Body.Close()
+
+	doc, err := goquery.NewDocumentFromResponse(res)
+	if err != nil {
+		return "", "", err
+	}
+	imgNode := doc.Find("#img")
+	if imgNode.Length() == 0 {
 		return "", "", fmt.Errorf("Can't find #img node")
 	}
-	imgUrl := getAttr(imgNode, "src")
-	if imgUrl == "" {
+	imgURL, ok := imgNode.Attr("src")
+	if !ok {
 		return "", "", fmt.Errorf("Can't find #img src")
 	}
-	nextUrl := getAttr(imgNode.Parent, "href")
-	if imgUrl == "" {
+	nextURL, ok := imgNode.Parent().Attr("href")
+	if !ok {
 		return "", "", fmt.Errorf("Can't find next url")
 	}
-	return imgUrl, nextUrl, nil
-}
-
-func getAttr(n *html.Node, key string) string {
-	for _, attr := range n.Attr {
-		if attr.Key == key {
-			return attr.Val
-		}
-	}
-	return ""
+	return imgURL, nextURL, nil
 }
 
 func download(rawurl string) error {
@@ -85,7 +97,7 @@ func download(rawurl string) error {
 		return err
 	}
 	if filename == "509.gif" {
-		return ErrLimitReached
+		return errLimitReached
 	}
 	resp, err := http.Get(rawurl)
 	if err != nil {
