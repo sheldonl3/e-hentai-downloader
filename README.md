@@ -1,4 +1,4 @@
-## get-eh
+## e-hentai-downloader
 下载 E-Hentai.org 中喜爱的画集，项目源自于[get-eh](https://github.com/shinraminagi/get-eh.git)
 ## 系统要求和前期准备
 - go环境（>=1.15）
