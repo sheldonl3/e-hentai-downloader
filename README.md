@@ -10,5 +10,5 @@
 ## 使用方法
 ### 1在根目录 go build或者go install
 ### 2运行编译出的可执行文件，参数为画集详情页url
-./get-eh https://e-hentai.org/g/xxxx/xxxxxxxxx
+./get-eh https://e-hentai.org/g/xxxx/xxxxxxxxx  
 sp：有图片下载失败的情况请更换梯子节点
