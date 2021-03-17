@@ -7,3 +7,5 @@
 - 使用画集首页url
 - 使用携程，加快下载速度
 - 文件保存在以画集名命名的文件夹中
+## 使用方法
+./get-eh https://e-hentai.org/g/xxxx/xxxxxxxxx
