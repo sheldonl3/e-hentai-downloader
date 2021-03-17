@@ -32,7 +32,7 @@ func init() {
 
 	//设置代理
 	proxy := func(_ *http.Request) (*url.URL, error) {
-		return url.Parse("http://127.0.0.1:51837")
+		return url.Parse("http://127.0.0.1:58591")
 	}
 	transport := &http.Transport{Proxy: proxy}
 
@@ -42,52 +42,37 @@ func init() {
 	}
 }
 
+/*从画集详情页找到第一个图片url，开始遍历全部url，并开启gorutinue进行下载*/
 func main() {
 	flag.Parse()
-	url0 := flag.Arg(0)
-	//getImgurl(url0)
+	url, title, err := getImgurlandtitle(flag.Arg(0))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = mkdir(title)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	url1 := ""
-	first_url := true
-	for url0 != url1 {
-		fmt.Printf("Scraping %s...", url0)
-		imgURL, nextURL, err := scrapeImgAndNext(url0, &first_url)
+	for url != url1 {
+		fmt.Printf("Scraping %s...\n", url)
+		imgURL, nextURL, err := scrapeImgAndNext(url)
 		if err != nil {
-			if first_url == true {
-				fmt.Println(err)
-				break
-			}
 			fmt.Println(err)
-			fmt.Println("Retry...")
-			continue
+			fmt.Printf("cant scrapeImg %s\n", url)
+			break
 		}
 		wait.Add(1)
 		go download_pic(imgURL)
-		url0, url1 = nextURL, url0
+		url, url1 = nextURL, url
 	}
 	wait.Wait()
 }
 
-//func getImgurl(rawurl string) (img string, err error) {
-//	res, err := httpClient.Get(rawurl)
-//	if err != nil {
-//		return "", err
-//	}
-//	defer res.Body.Close()
-//
-//	doc, err := goquery.NewDocumentFromResponse(res)
-//	if err != nil {
-//		return "", err
-//	}
-//	doc.Find(".gdtm").Each(func(i int, selection *goquery.Selection) {
-//		url,_:=selection.Find("a").Attr("href")
-//		fmt.Printf("%d - url:%s\n",i,url)
-//	})
-//
-//
-//	return "", nil
-//}
-
-func scrapeImgAndNext(rawurl string, first_url *bool) (img string, next string, err error) {
+/*从画集详情页获取1st图片页url和题目*/
+func getImgurlandtitle(rawurl string) (string, string, error) {
 	res, err := httpClient.Get(rawurl)
 	if err != nil {
 		return "", "", err
@@ -95,40 +80,16 @@ func scrapeImgAndNext(rawurl string, first_url *bool) (img string, next string, 
 	defer res.Body.Close()
 
 	doc, err := goquery.NewDocumentFromResponse(res)
+	var url string
+	var title string
+
 	if err != nil {
 		return "", "", err
 	}
-
-	//创建文件夹
-	if *first_url == true {
-		title := doc.Find("title")
-		if title.Length() == 0 {
-			return "", "", fmt.Errorf("Can't find #title node")
-		}
-		err := mkdir(title.Text())
-		if err != nil {
-			return "", "", err
-		}
-		fmt.Println("data will be save in " + title.Text())
-	}
-
-	imgNode := doc.Find("#img")
-	if imgNode.Length() == 0 {
-		*first_url = false
-		return "", "", fmt.Errorf("Can't find #img node")
-	}
-	imgURL, ok := imgNode.Attr("src")
-	if !ok {
-		*first_url = false
-		return "", "", fmt.Errorf("Can't find #img src")
-	}
-	nextURL, ok := imgNode.Parent().Attr("href")
-	if !ok {
-		*first_url = false
-		return "", "", fmt.Errorf("Can't find next url")
-	}
-	*first_url = false
-	return imgURL, nextURL, nil
+	url, _ = doc.Find(".gdtm").Find("a").Attr("href")
+	title = doc.Find("#gn").Text()
+	fmt.Printf("url:%s\ntitle:%s\n", url, title)
+	return url, title, nil
 }
 
 func mkdir(title string) (error error) {
@@ -154,7 +115,38 @@ func mkdir(title string) (error error) {
 	return fmt.Errorf("dont know " + title + "exits")
 }
 
+/*解析某一张图片详情的url，找出图片的源url和下一张的url*/
+func scrapeImgAndNext(rawurl string) (img string, next string, err error) {
+	res, err := httpClient.Get(rawurl)
+	if err != nil {
+		return "", "", err
+	}
+	defer res.Body.Close()
+
+	doc, err := goquery.NewDocumentFromResponse(res)
+	if err != nil {
+		return "", "", err
+	}
+
+	imgNode := doc.Find("#img")
+	if imgNode.Length() == 0 {
+		return "", "", fmt.Errorf("Can't find #img node")
+	}
+	imgURL, ok := imgNode.Attr("src")
+	if !ok {
+		return "", "", fmt.Errorf("Can't find #img src")
+	}
+	nextURL, ok := imgNode.Parent().Attr("href")
+	if !ok {
+		return "", "", fmt.Errorf("Can't find next url")
+	}
+	return imgURL, nextURL, nil
+}
+
+/*下载图片的携程，默认重试一次*/
 func download_pic(imgURL string) {
+	defer wait.Done()
+	retry_time := 1
 	for {
 		err := download(imgURL)
 		if err != nil {
@@ -162,12 +154,18 @@ func download_pic(imgURL string) {
 			if err == errLimitReached {
 				break
 			}
-			fmt.Println("Retry...")
+			if retry_time != 0 {
+				retry_time--
+				fmt.Println("Retry...")
+			} else {
+				fmt.Printf("\033[1;31;40m%s\033[0m\n", "error")
+				fmt.Printf("cant download %s\n", imgURL)
+				break
+			}
 		} else {
 			break
 		}
 	}
-	fmt.Println("done")
 	return
 }
 
@@ -194,13 +192,13 @@ func download(rawurl string) error {
 		return err
 	}
 	resp.Body.Close()
-	wait.Done()
 	return nil
 }
 
 var reInPath = regexp.MustCompile("[^/]+$")
 var reInQuery = regexp.MustCompile("[^=]+$")
 
+/*从url获取图片的文件名*/
 func fileNameOf(rawurl string) (string, error) {
 	url, err := url.Parse(rawurl)
 	if err != nil {
